@@ -34,17 +34,39 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="131dp"
         android:background="@color/black">
 
         <TextView
             android:id="@+id/path_select"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Path:"
+            android:text="PATH:"
             android:textColor="@android:color/holo_green_light"
             android:textSize="24sp"
             android:visibility="visible" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/black">
+
+        <Button
+            android:id="@+id/button_encode"
+            android:layout_width="131dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal|top"
+            android:text="Codificar"
+            android:textAlignment="center"
+            android:visibility="invisible" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/black">
 
     </FrameLayout>
 </LinearLayout>
