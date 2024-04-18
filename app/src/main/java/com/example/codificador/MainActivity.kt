@@ -20,9 +20,13 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.media3.common.util.Util
 
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.ByteBuffer
 
 
 class MainActivity : ComponentActivity() {
@@ -34,6 +38,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var extractor: MediaExtractor
     private lateinit var mediaCodec: MediaCodec
     private lateinit var mediaFormat: MediaFormat
+    private val OUTPUT_FILE_PATH = "content://media/picker/0/com.android.providers.media.photopicker/media/novo.mp4"
+    private val MIME_TYPE = "video/avc"
+    private val VIDEO_WIDTH = 720
+    private val VIDEO_HEIGHT = 1208
+    private val FRAME_RATE = 30
+    private val BIT_RATE = 2000000
+
     private val REQUEST_CODE_READ_EXTERNAL_STORAGE = 1001
     private val REQUEST_VIDEO_CODE = 1011
 
@@ -78,36 +89,103 @@ class MainActivity : ComponentActivity() {
 
     private fun startEncoding(){
         println("COMEÇAMOS A CODIFICAR")
-        val file = File(stringPathFile)
-        val fileInputStream = FileInputStream(file)
-        val arquivo_descript = fileInputStream.fd
-        extractor = MediaExtractor()
-        extractor.setDataSource(arquivo_descript)
-        val numTracks = extractor.trackCount
-        println(numTracks)
-        for(i in 0 until numTracks){
-            val inputFormat = extractor.getTrackFormat(i)
-            val mime = inputFormat.getString(MediaFormat.KEY_MIME)!!
-            println(mime)
+        try {
+            // Create a MediaFormat for the encoder
+            val format = MediaFormat.createVideoFormat(MIME_TYPE, VIDEO_WIDTH, VIDEO_HEIGHT)
+            format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE)
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE)
+            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+
+            // Find a suitable encoder for the given format
+            val codecName = MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format)
+            println("CODEC ESCOLHIDO:")
+            println(codecName)
+            codecName?.let { name ->
+                // Create the encoder
+                val encoder = MediaCodec.createByCodecName(name)
+                encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+
+                // Start the encoder
+                encoder.start()
+
+                // Read the file and feed its contents to the encoder
+                val file = File(stringPathFile)
+                val inputStream = FileInputStream(file)
+                val extractor = MediaExtractor()
+                extractor.setDataSource(inputStream.fd)
+
+                // Find and select the first video track
+                var trackIndex = -1
+                val trackCount = extractor.trackCount
+                for (i in 0 until trackCount) {
+                    val trackFormat = extractor.getTrackFormat(i)
+                    val mimeType = trackFormat.getString(MediaFormat.KEY_MIME)
+                    if (mimeType?.startsWith("video/") == true) {
+                        extractor.selectTrack(i)
+                        trackIndex = i
+                        break
+                    }
+                }
+
+                // Feed input data and get encoded output
+                val buffer = ByteBuffer.allocate(1024 * 1024)
+                var sampleSize = 0
+                while (sampleSize != -1) {
+                    sampleSize = extractor.readSampleData(buffer, 0)
+                    if (sampleSize >= 0) {
+                        val inputBufferIndex = encoder.dequeueInputBuffer(-1)
+                        if (inputBufferIndex >= 0) {
+                            val inputBuffer = encoder.getInputBuffer(inputBufferIndex)
+                            inputBuffer?.put(buffer.array(), 0, sampleSize)
+                            encoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
+                        }
+                        extractor.advance()
+                    }
+                }
+
+                // Get the encoded output
+                val bufferInfo = MediaCodec.BufferInfo()
+                var outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, -1)
+                while (outputBufferIndex >= 0) {
+                    val outputBuffer = encoder.getOutputBuffer(outputBufferIndex)
+                    // Write the encoded data to the output file
+                    val outputFile = File(OUTPUT_FILE_PATH)
+                    val outputStream = FileOutputStream(outputFile, true)
+                    outputBuffer?.let {
+                        val outputData = ByteArray(bufferInfo.size)
+                        it.get(outputData)
+                        outputStream.write(outputData)
+                    }
+                    outputStream.close()
+                    encoder.releaseOutputBuffer(outputBufferIndex, false)
+                    outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, -1)
+                }
+
+
+                // Stop and release the encoder
+                encoder.stop()
+                encoder.release()
+                extractor.release()
+                inputStream.close()
+
+            } ?: run {
+                // No suitable encoder found for the format
+                // Handle the error accordingly
+            }
+
+        } catch (e: IOException) {
+            e.printStackTrace()
+            // Handle IOException
         }
-
-
-        mediaCodec = MediaCodec.createEncoderByType("video/avc")
-        mediaFormat= MediaFormat.createVideoFormat("video/avc",320,240)
-        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE,125000)
-        mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 15);
-        mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
-        mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 5);
-        mediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-        mediaCodec.start()
     }
 
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_READ_EXTERNAL_STORAGE && resultCode == Activity.RESULT_OK) {
-            if(data != null){
-                pathFile = data.getData()!!
+            if(data != null && data.data != null ){
+                pathFile = data.data!!
                 stringPathFile = pathFile.toString()
 
                 mPathText.setText("PATH: "+pathFile)
