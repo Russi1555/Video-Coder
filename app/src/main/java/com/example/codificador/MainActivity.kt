@@ -1,32 +1,27 @@
 package com.example.codificador
 
-import android.R.attr.mimeType
-import android.R.string
 import android.app.Activity
 import android.content.Intent
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
-import android.media.MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
 import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import android.media.MediaMetadataRetriever;
 import android.os.Build
-import android.os.Build.VERSION.SDK_INT
-import android.os.Build.VERSION_CODES.Q
 import android.os.Bundle
+import android.os.Environment
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
-import androidx.media3.common.util.Util
-
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+
 
 
 class MainActivity : ComponentActivity() {
@@ -38,15 +33,19 @@ class MainActivity : ComponentActivity() {
     private lateinit var extractor: MediaExtractor
     private lateinit var mediaCodec: MediaCodec
     private lateinit var mediaFormat: MediaFormat
-    private val OUTPUT_FILE_PATH = "content://media/picker/0/com.android.providers.media.photopicker/media/novo.mp4"
+    var downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    private val OUTPUT_FILE_PATH = File(downloadsDir, "result.mp4")
     private val MIME_TYPE = "video/avc"
     private val VIDEO_WIDTH = 720
-    private val VIDEO_HEIGHT = 1208
+    private val VIDEO_HEIGHT = 1280
     private val FRAME_RATE = 30
     private val BIT_RATE = 2000000
 
-    private val REQUEST_CODE_READ_EXTERNAL_STORAGE = 1001
+    private val REQUEST_FOR_VIDEO_FILE = 1001
     private val REQUEST_VIDEO_CODE = 1011
+
+
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,20 +56,20 @@ class MainActivity : ComponentActivity() {
         mPathButton.setOnClickListener{
             openFileExplorer()
         }
-        println("MODEL: " + Build.MODEL);
-        println("ID: " + Build.ID);
-        println("Manufacture: " + Build.MANUFACTURER);
-        println("brand: " + Build.BRAND);
-        println("type: " + Build.TYPE);
-        println("user: " + Build.USER);
-        println("BASE: " + Build.VERSION_CODES.BASE);
-        println("INCREMENTAL " + Build.VERSION.INCREMENTAL);
-        println("SDK  " + Build.VERSION.SDK);
-        println("BOARD: " + Build.BOARD);
-        println("BRAND " + Build.BRAND);
-        println("HOST " + Build.HOST);
-        println("FINGERPRINT: "+Build.FINGERPRINT);
-        println("Version Code: " + Build.VERSION.RELEASE);
+        Log.d("YourTag", "MODEL: " + Build.MODEL);
+        Log.d("YourTAG","ID: " + Build.ID);
+        Log.d("YourTAG","Manufacture: " + Build.MANUFACTURER);
+        Log.d("YourTAG","brand: " + Build.BRAND);
+        Log.d("YourTAG","type: " + Build.TYPE);
+        Log.d("YourTAG","user: " + Build.USER);
+        Log.d("YourTAG","BASE: " + Build.VERSION_CODES.BASE);
+        Log.d("YourTAG","INCREMENTAL " + Build.VERSION.INCREMENTAL);
+        Log.d("YourTAG","SDK  " + Build.VERSION.SDK);
+        Log.d("YourTAG","BOARD: " + Build.BOARD);
+        Log.d("YourTAG","BRAND " + Build.BRAND);
+        Log.d("YourTAG","HOST " + Build.HOST);
+        Log.d("YourTAG","FINGERPRINT: "+Build.FINGERPRINT);
+        Log.d("YourTAG","Version Code: " + Build.VERSION.RELEASE);
 
         mEncodeButton = findViewById(R.id.button_encode)
         mEncodeButton.setOnClickListener{
@@ -80,15 +79,18 @@ class MainActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     private fun openFileExplorer(){
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
-        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        //val intent = Intent(Intent.ACTION_GET_CONTENT)
+       // intent.addCategory(Intent.CATEGORY_OPENABLE)
         //https://developer.android.com/reference/androidx/media3/common/MimeTypes#VIDEO_RAW()
-        intent.type = "video/mp4"
-        startActivityForResult(intent, REQUEST_CODE_READ_EXTERNAL_STORAGE)
+        val intent = Intent()
+        intent.setType("*/*")
+        intent.setAction(Intent.ACTION_GET_CONTENT)
+        startActivityForResult(intent, REQUEST_FOR_VIDEO_FILE);
+
     }
 
     private fun startEncoding(){
-        println("COMEÇAMOS A CODIFICAR")
+        Log.d("YourTAG","COMEÇAMOS A CODIFICAR")
         try {
             // Create a MediaFormat for the encoder
             val format = MediaFormat.createVideoFormat(MIME_TYPE, VIDEO_WIDTH, VIDEO_HEIGHT)
@@ -99,8 +101,8 @@ class MainActivity : ComponentActivity() {
 
             // Find a suitable encoder for the given format
             val codecName = MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format)
-            println("CODEC ESCOLHIDO:")
-            println(codecName)
+            Log.d("YourTAG","CODEC ESCOLHIDO:")
+            Log.d("YourTAG",codecName)
             codecName?.let { name ->
                 // Create the encoder
                 val encoder = MediaCodec.createByCodecName(name)
@@ -110,7 +112,8 @@ class MainActivity : ComponentActivity() {
                 encoder.start()
 
                 // Read the file and feed its contents to the encoder
-                val file = File(stringPathFile)
+
+                val file = File("/storage/emulated/0/Download/Telegram/video_original_360p.y4m")
                 val inputStream = FileInputStream(file)
                 val extractor = MediaExtractor()
                 extractor.setDataSource(inputStream.fd)
@@ -150,7 +153,7 @@ class MainActivity : ComponentActivity() {
                 while (outputBufferIndex >= 0) {
                     val outputBuffer = encoder.getOutputBuffer(outputBufferIndex)
                     // Write the encoded data to the output file
-                    val outputFile = File(OUTPUT_FILE_PATH)
+                    val outputFile = OUTPUT_FILE_PATH
                     val outputStream = FileOutputStream(outputFile, true)
                     outputBuffer?.let {
                         val outputData = ByteArray(bufferInfo.size)
@@ -183,10 +186,10 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_READ_EXTERNAL_STORAGE && resultCode == Activity.RESULT_OK) {
+        if (requestCode == REQUEST_FOR_VIDEO_FILE && resultCode == Activity.RESULT_OK) {
             if(data != null && data.data != null ){
                 pathFile = data.data!!
-                stringPathFile = pathFile.toString()
+                stringPathFile = pathFile.path!!
 
                 mPathText.setText("PATH: "+pathFile)
                 mEncodeButton.visibility = View.VISIBLE
